@@ -177,8 +177,8 @@ def load_model(prefix: str) -> dict:
              (no file extension — three files are expected)
     """
     # ── Load datasets and metadata ────────────────────────────────────────────
-    # data    = np.load(prefix + "_data.npz")
-    data    = eqx.tree_deserialise_leaves(prefix + ".eqx")
+    data    = np.load(prefix + "_data.npz")
+    # data    = eqx.tree_deserialise_leaves(prefix + ".eqx")
     # data    = eqx.tree_deserialise_leaves(prefix + ".eqx", data)
     mag_ds  = gpx.Dataset(X=jnp.array(data["mag_X"]),
                           y=jnp.array(data["mag_y"]))
