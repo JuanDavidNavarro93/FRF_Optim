@@ -692,7 +692,7 @@ def train_full_model(
 
 model = train_full_model(
     rho_values, frf_matrix, freq_values,
-    num_iters=500,
+    num_iters=1000,
     learning_rate=0.01,
 )
 
@@ -821,11 +821,14 @@ print("\n" + "═" * 60)
 print("STEP 8 — Saving model")
 print("═" * 60)
 
+# Saving the model using pkl
 import pickle
-
-# Assuming 'optimized_model' is your trained GPJax model object
 with open("CUDA_gp_model.pkl", "wb") as f:
     pickle.dump(model, f)
+
+# Saving the model using equinos
+import equinox as eqx 
+eqx.tree_serialise_leaves("CUDA_gp_model.eqx", model)
 
 print("\nFinished saving model")
 print("═" * 60)

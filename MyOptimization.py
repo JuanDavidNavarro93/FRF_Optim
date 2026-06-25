@@ -83,6 +83,7 @@ import equinox as eqx
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from scipy.optimize import minimize_scalar
+import equinox as eqx
 
 config.update("jax_enable_x64", True)
 
@@ -176,7 +177,9 @@ def load_model(prefix: str) -> dict:
              (no file extension — three files are expected)
     """
     # ── Load datasets and metadata ────────────────────────────────────────────
-    data    = np.load(prefix + "_data.npz")
+    # data    = np.load(prefix + "_data.npz")
+    data    = eqx.tree_deserialise_leaves(prefix + ".eqx")
+    # data    = eqx.tree_deserialise_leaves(prefix + ".eqx", data)
     mag_ds  = gpx.Dataset(X=jnp.array(data["mag_X"]),
                           y=jnp.array(data["mag_y"]))
     sign_ds = gpx.Dataset(X=jnp.array(data["sign_X"]),

@@ -36,10 +36,10 @@ STEP 5 — Starting Full Model Training
 ── Preparing data ──
 ── Training Channel 1: Magnitude GP ──
   [Ch1] Initial  MLL = -13820.7555
-  [Ch1] Final    MLL = -8118.3603
+  [Ch1] Final    MLL = -7682.5839
 ── Training Channel 2: Sign GP ──
   [Ch2] Initial  log-posterior = -30151.6418
-  [Ch2] Final    log-posterior = -13986.6594
+  [Ch2] Final    log-posterior = -13484.5786
 Finished
 ════════════════════════════════════════════════════════════
 
@@ -58,7 +58,4 @@ Done. Outputs: loo_fold_*.png | training_history.png | frf_surface.png
 
 ════════════════════════════════════════════════════════════
 STEP 8 — Saving model
-════════════════════════════════════════════════════════════
-
-Finished saving model
 ════════════════════════════════════════════════════════════
