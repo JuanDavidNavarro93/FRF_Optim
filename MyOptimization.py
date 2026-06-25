@@ -1,40 +1,40 @@
-import equinox as eqx
-import numpy as np
-import jax.numpy as jnp
-import pickle
+# import equinox as eqx
+# import numpy as np
+# import jax.numpy as jnp
+# import pickle
 
-# ── Patch CombinationKernel ────────────────────────────────────────────────
-from gpjax.kernels.base import CombinationKernel
-CombinationKernel.__abstractmethods__ = frozenset(
-    m for m in CombinationKernel.__abstractmethods__ if m != '_reduce'
-)
-# Provide a no-op so any call to _reduce doesn't crash post-load
-CombinationKernel._reduce = lambda self, x: x
+# # ── Patch CombinationKernel ────────────────────────────────────────────────
+# from gpjax.kernels.base import CombinationKernel
+# CombinationKernel.__abstractmethods__ = frozenset(
+#     m for m in CombinationKernel.__abstractmethods__ if m != '_reduce'
+# )
+# # Provide a no-op so any call to _reduce doesn't crash post-load
+# CombinationKernel._reduce = lambda self, x: x
 
-# ── Unpickle ───────────────────────────────────────────────────────────────
-MODEL_PATH   = "/work/ljk354/FRF_Optim/GP_Jax/800kHz_CUDA_Outputs_25/CUDA_gp_model.pkl"
-MODEL_PREFIX = "/work/ljk354/FRF_Optim/GP_Jax/800kHz_CUDA_Outputs_25/CUDA_gp_model"
+# # ── Unpickle ───────────────────────────────────────────────────────────────
+# MODEL_PATH   = "/work/ljk354/FRF_Optim/GP_Jax/800kHz_CUDA_Outputs_25/CUDA_gp_model.pkl"
+# MODEL_PREFIX = "/work/ljk354/FRF_Optim/GP_Jax/800kHz_CUDA_Outputs_25/CUDA_gp_model"
 
-with open(MODEL_PATH, "rb") as f:
-    loaded_model = pickle.load(f)
+# with open(MODEL_PATH, "rb") as f:
+#     loaded_model = pickle.load(f)
 
-print("Pickle loaded! Keys:", list(loaded_model.keys()))
+# print("Pickle loaded! Keys:", list(loaded_model.keys()))
 
-# ── Re-save portably ───────────────────────────────────────────────────────
-eqx.tree_serialise_leaves(MODEL_PREFIX + "_mag_post.eqx",  loaded_model["mag_post"])
-eqx.tree_serialise_leaves(MODEL_PREFIX + "_sign_post.eqx", loaded_model["sign_post"])
+# # ── Re-save portably ───────────────────────────────────────────────────────
+# eqx.tree_serialise_leaves(MODEL_PREFIX + "_mag_post.eqx",  loaded_model["mag_post"])
+# eqx.tree_serialise_leaves(MODEL_PREFIX + "_sign_post.eqx", loaded_model["sign_post"])
 
-np.savez(MODEL_PREFIX + "_data.npz",
-    mag_X          = np.array(loaded_model["mag_ds"].X),
-    mag_y          = np.array(loaded_model["mag_ds"].y),
-    sign_X         = np.array(loaded_model["sign_ds"].X),
-    sign_y         = np.array(loaded_model["sign_ds"].y),
-    log_abs_H_mean = np.array([loaded_model["meta"]["log_abs_H_mean"]]),
-    log_abs_H_std  = np.array([loaded_model["meta"]["log_abs_H_std"]]),
-    rho_values     = loaded_model["meta"]["rho_values"],
-    freq_values    = loaded_model["freq_values"],
-)
-print("Re-saved in portable .eqx format.")
+# np.savez(MODEL_PREFIX + "_data.npz",
+#     mag_X          = np.array(loaded_model["mag_ds"].X),
+#     mag_y          = np.array(loaded_model["mag_ds"].y),
+#     sign_X         = np.array(loaded_model["sign_ds"].X),
+#     sign_y         = np.array(loaded_model["sign_ds"].y),
+#     log_abs_H_mean = np.array([loaded_model["meta"]["log_abs_H_mean"]]),
+#     log_abs_H_std  = np.array([loaded_model["meta"]["log_abs_H_std"]]),
+#     rho_values     = loaded_model["meta"]["rho_values"],
+#     freq_values    = loaded_model["freq_values"],
+# )
+# print("Re-saved in portable .eqx format.")
 
 #!/usr/bin/env python3
 """
@@ -176,7 +176,7 @@ def load_model(prefix: str) -> dict:
              (no file extension — three files are expected)
     """
     # ── Load datasets and metadata ────────────────────────────────────────────
-    data    = np.load(prefix + ".pkl")
+    data    = np.load(prefix + "_data.npz")
     mag_ds  = gpx.Dataset(X=jnp.array(data["mag_X"]),
                           y=jnp.array(data["mag_y"]))
     sign_ds = gpx.Dataset(X=jnp.array(data["sign_X"]),
