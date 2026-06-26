@@ -31,6 +31,7 @@ structure for efficient inference (see note at bottom of file).
 Created: 05/27/2026
 
 Modifications: This version of the code exploits GPU Parallelization
+Mallorie
 """
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -77,7 +78,7 @@ n_rho = 25
 rho_0 = 0.2
 rho_values  = np.linspace(rho_0, 1.0-rho_0, 25)[:n_rho]
 thick_values = np.arange(0.0,6.0,1.0)
-dd = 4
+dd = 7
 freq_values = np.arange(100.0, 601.0, dd, dtype=np.float64)
 frf_matrix  = np.zeros((np.shape(rho_values)[0]*np.shape(thick_values)[0],np.shape(freq_values)[0]))
 
@@ -192,6 +193,7 @@ def prepare_data(
 
 def build_product_kernel(
     rho_lengthscale: float = 0.1,   # initial ℓ_ρ  (≈ half the ρ range is a good start)
+    thickness_lengthscale: float = 1.0, # initial ℓ_thickness (≈ half the thickness range)
     f_lengthscale:   float = 50.0,  # initial ℓ_f  in kHz
     variance:        float = 1.0,   # overall amplitude (absorbed into k_ρ)
     ) -> gpx.kernels.AbstractKernel:
@@ -210,13 +212,18 @@ def build_product_kernel(
         lengthscale=jnp.array(rho_lengthscale),
         variance=jnp.array(variance),
     )
-    k_f = gpx.kernels.Matern52(
+    k_thickness = gpx.kernels.Matern52(
         active_dims=[1],
+        lengthscale=jnp.array(thickness_lengthscale),
+        variance=jnp.array(1.0),
+    )
+    k_f = gpx.kernels.Matern52(
+        active_dims=[2],
         lengthscale=jnp.array(f_lengthscale),
         variance=jnp.array(1.0),
     )
     
-    return gpx.kernels.ProductKernel(kernels=[k_rho, k_f])
+    return gpx.kernels.ProductKernel(kernels=[k_rho, k_thickness, k_f])
   
 # end build_product_kernel
 
@@ -276,8 +283,7 @@ def train_magnitude_gp(
         key=key,
     )
      
-    k0, k1 = opt_posterior.prior.kernel.kernels
-    print(f"  [Ch1] Final    MLL = {-history[-1]:.4f}")
+    k0, k1, k2 = opt_posterior.prior.kernel.kernels
     # print(f"  [Ch1] ℓ_ρ = {k0.lengthscale:.5f} | "
     #       f"ℓ_f = {k1.lengthscale:.2f} kHz | "
     #       f"σ² (noise) = {opt_posterior.likelihood.obs_stddev**2:.2e}")   
@@ -342,7 +348,7 @@ def train_sign_gp(
         key=key,
     )
  
-    k0, k1 = opt_posterior.prior.kernel.kernels
+    k0, k1, k2 = opt_posterior.prior.kernel.kernels
     print(f"  [Ch2] Final    log-posterior = {-history[-1]:.4f}")
     # print(f"  [Ch2] ℓ_ρ = {k0.lengthscale:.5f} | "
     #       f"ℓ_f = {k1.lengthscale:.2f} kHz")
@@ -389,7 +395,6 @@ def predict_magnitude(
     magnitude_std = magnitude * std_log
  
     return magnitude, magnitude_std
-
 #end predict_magnitude
 
 def predict_sign(
@@ -422,11 +427,11 @@ def predict_sign(
     pred_sign     = np.where(prob_positive >= 0.5, 1.0, -1.0)
  
     return prob_positive, pred_sign
-
 # end predict_sign
 
 def predict_frf(
     rho_star:     float,
+    thick_star:   float,
     freq_values:  np.ndarray,
     mag_post,
     sign_post,
@@ -452,7 +457,7 @@ def predict_frf(
     """
     n_f    = len(freq_values)
     X_test = jnp.stack(
-        [jnp.full((n_f,), float(rho_star)), jnp.array(freq_values, dtype=jnp.float64)],
+        [jnp.full((n_f,), float(rho_star)), jnp.full((n_f,), float(thick_star)), jnp.array(freq_values, dtype=jnp.float64)],
         axis=-1,
     )
  
@@ -656,7 +661,7 @@ def plot_loo_result(
 # # end plot_loo_result
 
 # Plot each LOO fold
-foldr_out = '800kHz_CUDA_Outputs_'+str(n_rho)
+foldr_out = '800kHz_CUDA_Outputs_Thickness'
 if not(os.path.isdir(foldr_out)):
     os.mkdir(foldr_out)
 # ned if
@@ -722,8 +727,8 @@ def train_full_model(
 # end train_full_model
 
 model = train_full_model(
-    rho_values, thick_values,frf_matrix, freq_values,
-    num_iters=200,
+    rho_values, thick_values, frf_matrix, freq_values,
+    num_iters=50,
     learning_rate=0.01,
 )
 
@@ -769,19 +774,21 @@ plt.close(fig_hist)
 print('Finished')
 print("═" * 60)
 
-# # ═════════════════════════════════════════════════════════════════════════════
-# # 7. Predict at a new density & visualise the FRF surface
-# # ═════════════════════════════════════════════════════════════════════════════
-# print("\n" + "═" * 60)
-# print("STEP 7 — Starting FRF Surface Visualisation")
-# print("═" * 60)
+# ═════════════════════════════════════════════════════════════════════════════
+# 7. Predict at a new density & visualise the FRF surface
+# ═════════════════════════════════════════════════════════════════════════════
+print("\n" + "═" * 60)
+print("STEP 7 — Starting FRF Surface Visualisation")
+print("═" * 60)
 
 # def plot_frf_surface(
 #     rho_values:    np.ndarray,
+#     thick_values:  np.ndarray,
 #     frf_matrix:    np.ndarray,
 #     freq_values:   np.ndarray,
 #     model:         dict,
 #     rho_dense:     np.ndarray = None,
+#     thick_dense:   np.ndarray = None,
 #     figsize:       tuple = (14, 5),
 #     ) -> plt.Figure:
 #     """
@@ -792,15 +799,18 @@ print("═" * 60)
 #     """
 #     if rho_dense is None:
 #         rho_dense = np.linspace(rho_values.min(), rho_values.max(), 20)
- 
+#     # end if
+#     if thick_dense is None:
+#         thick_dense = np.linspace(thick_values.min(), thick_values.max(), 20)
+#     # end if
 #     fig, (ax0, ax1) = plt.subplots(1, 2, figsize=figsize, sharey=False)
  
 #     # Training data waterfall
 #     cmap = plt.cm.viridis
-#     for k, (rho, H_row) in enumerate(zip(rho_values, frf_matrix)):
-#         color = cmap(k / max(len(rho_values) - 1, 1))
+#     for k, (rho, thick, H_row) in enumerate(zip(rho_values, thick_values, frf_matrix)):
+#         color = cmap(k / max(len(rho_values)*len(thick_values) - 1, 1))
 #         ax0.plot(freq_values, np.log10(np.abs(H_row)), color=color, lw=0.9,
-#                  label=f"ρ = {rho:.3f}")
+#                  label=f"ρ = {rho:.3f}, th = {thick:.2f}")
 #     # ax0.axhline(0, color="k", lw=0.4, ls=":")
 #     ax0.set_title("Training FRFs (FEM)",fontsize=24)
 #     ax0.set_xlabel("Frequency [kHz]",fontsize=18)
@@ -809,10 +819,10 @@ print("═" * 60)
 #     ax0.set_ylim([-10,-2])
  
 #     # GP predictions at dense ρ grid
-#     for k, rho_s in enumerate(rho_dense):
-#         color = cmap(k / max(len(rho_dense) - 1, 1))
+#     for k, (rho_s, thick_s) in enumerate(zip(rho_dense, thick_dense)):
+#         color = cmap(k / max(len(rho_dense)*len(thick_dense) - 1, 1))
 #         pred  = predict_frf(
-#             rho_s, freq_values,
+#             rho_s, thick_s, freq_values,
 #             model["mag_post"], model["sign_post"],
 #             model["mag_ds"],   model["sign_ds"],
 #             model["meta"],
@@ -835,15 +845,188 @@ print("═" * 60)
 
 # # end plot_frf_surface
 
-# fig_surf = plot_frf_surface(
-#     rho_values, frf_matrix, freq_values, model,
-#     rho_dense=np.linspace(0.1, 0.5, 25),
-# )
-# fig_surf.savefig("CUDA_frf_surface.png", dpi=150, bbox_inches="tight")
-# plt.close(fig_surf)
+def plot_frf_surface(
+    rho_values: np.ndarray,
+    thick_values: np.ndarray,
+    frf_tensor: np.ndarray,      # (n_rho, n_thick, n_freq)
+    freq_values: np.ndarray,
+    model: dict,
+    rho_dense: np.ndarray = None,
+    thick_dense: np.ndarray = None,
+    rho_fixed: float = None,
+    thick_fixed: float = None,
+    figsize=(15,10),
+):
+    """
+    Four-panel visualization.
 
-# print("\nDone. Outputs: loo_fold_*.png | training_history.png | frf_surface.png")
-# print("═" * 60)
+        (1) Training data varying rho (fixed thickness)
+        (2) GP varying rho (fixed thickness)
+
+        (3) Training data varying thickness (fixed rho)
+        (4) GP varying thickness (fixed rho)
+    """
+
+    if rho_dense is None:
+        rho_dense = np.linspace(rho_values.min(), rho_values.max(), 25)
+
+    if thick_dense is None:
+        thick_dense = np.linspace(thick_values.min(), thick_values.max(), 25)
+
+    if rho_fixed is None:
+        rho_fixed = rho_values[len(rho_values)//2]
+
+    if thick_fixed is None:
+        thick_fixed = thick_values[len(thick_values)//2]
+
+    rho_idx = np.argmin(np.abs(rho_values-rho_fixed))
+    thick_idx = np.argmin(np.abs(thick_values-thick_fixed))
+
+    fig, axs = plt.subplots(2,2,figsize=figsize)
+
+    cmap = plt.cm.viridis
+
+    ###############################################################
+    # (1) Training data : varying rho
+    ###############################################################
+
+    ax = axs[0,0]
+
+    for i,rho in enumerate(rho_values):
+
+        color = cmap(i/max(len(rho_values)-1,1))
+
+        H = frf_tensor[i,thick_idx,:]
+
+        ax.plot(
+            freq_values,
+            np.log10(np.abs(H)),
+            color=color,
+            lw=1,
+            label=f"{rho:.2f}"
+        )
+
+    ax.set_title(f"Training Data\nVarying Relative Density\nThickness={thick_values[thick_idx]:.2f}")
+    ax.set_xlabel("Frequency [kHz]")
+    ax.set_ylabel(r"$\log_{10}|U|$")
+
+    ###############################################################
+    # (2) GP : varying rho
+    ###############################################################
+
+    ax = axs[0,1]
+
+    for i,rho in enumerate(rho_dense):
+
+        color = cmap(i/max(len(rho_dense)-1,1))
+
+        pred = predict_frf(
+            rho,
+            thick_values[thick_idx],
+            freq_values,
+            model["mag_post"],
+            model["sign_post"],
+            model["mag_ds"],
+            model["sign_ds"],
+            model["meta"],
+        )
+
+        ax.plot(
+            freq_values,
+            np.log10(np.abs(pred["H_pred"])),
+            color=color,
+            lw=0.8,
+        )
+
+    ax.set_title("GP Prediction\nVarying Relative Density")
+    ax.set_xlabel("Frequency [kHz]")
+    ax.set_ylabel(r"$\log_{10}|U|$")
+
+    ###############################################################
+    # (3) Training data : varying thickness
+    ###############################################################
+
+    ax = axs[1,0]
+
+    for j,t in enumerate(thick_values):
+
+        color = cmap(j/max(len(thick_values)-1,1))
+
+        H = frf_tensor[rho_idx,j,:]
+
+        ax.plot(
+            freq_values,
+            np.log10(np.abs(H)),
+            color=color,
+            lw=1,
+            label=f"{t:.2f}"
+        )
+
+    ax.set_title(f"Training Data\nVarying Thickness\nDensity={rho_values[rho_idx]:.2f}")
+    ax.set_xlabel("Frequency [kHz]")
+    ax.set_ylabel(r"$\log_{10}|U|$")
+
+    ###############################################################
+    # (4) GP : varying thickness
+    ###############################################################
+
+    ax = axs[1,1]
+
+    for j,t in enumerate(thick_dense):
+
+        color = cmap(j/max(len(thick_dense)-1,1))
+
+        pred = predict_frf(
+            rho_values[rho_idx],
+            t,
+            freq_values,
+            model["mag_post"],
+            model["sign_post"],
+            model["mag_ds"],
+            model["sign_ds"],
+            model["meta"],
+        )
+
+        ax.plot(
+            freq_values,
+            np.log10(np.abs(pred["H_pred"])),
+            color=color,
+            lw=0.8,
+        )
+
+    ax.set_title("GP Prediction\nVarying Thickness")
+    ax.set_xlabel("Frequency [kHz]")
+    ax.set_ylabel(r"$\log_{10}|U|$")
+
+    ###############################################################
+
+    for ax in axs.flat:
+        ax.set_ylim([-10,-2])
+
+    fig.tight_layout()
+
+    return fig
+
+# fig_surf = plot_frf_surface(
+#     rho_values, thick_values, frf_matrix, freq_values, model,
+#     rho_dense=np.linspace(0.1, 0.5, 25), thick_dense=np.linspace(0.5, 2.0, 25)
+# )
+
+fig_surf = plot_frf_surface(
+    rho_values,
+    thick_values,
+    frf_matrix,          # shape = (n_rho, n_thickness, n_freq)
+    freq_values,
+    model,
+    rho_dense=np.linspace(rho_values.min(), rho_values.max(), 25),
+    thick_dense=np.linspace(thick_values.min(), thick_values.max(), 25),
+)
+
+fig_surf.savefig("CUDA_frf_surface.png", dpi=350, bbox_inches="tight")
+plt.close(fig_surf)
+
+print("\nDone. Outputs: loo_fold_*.png | training_history.png | frf_surface.png")
+print("═" * 60)
 
 # # ═════════════════════════════════════════════════════════════════════════════
 # # 8. Save model

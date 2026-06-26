@@ -1,35 +1,28 @@
 #!/bin/bash
-#
-# Define a job name.
 #SBATCH -J MYCUDA_GP
-#SBATCH -o GPU_myjob.o # Name of the stdout output file
-#SBATCH -e GPU_myjob.e # Name of stderr error file
-#SBATCH -p gpu1v100 # Queue (partition) name
-#SBATCH -N 1 # Total # of nodes 
-#SBATCH -n 1 # Total # of mpi tasks
-#SBATCH -c 40 # Total # of gpu tasks
-#SBATCH -t 72:00:00 # Run time (hh:mm:ss)
+#SBATCH -o GPU_myjob.o
+#SBATCH -e GPU_myjob.e
+#SBATCH -p gpu1v100
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH -c 40
+#SBATCH --gres=gpu:1
+#SBATCH -t 72:00:00
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user juan.navarro@my.utsa.edu
-# USER PARAMETERS
-# ==== ==========
+#SBATCH --mail-user=juan.navarro@my.utsa.edu
 
 module load anaconda3
 module load cudatoolkit/12.8.0_570.86.10
 module load cuda12/cudnn/9.2.0.82
 
-module list
-
+# source /path/to/anaconda3/etc/profile.d/conda.sh
 conda activate CUDA_GP
 
-export XLA_PYTHON_CLIENT_PREALLOCATE=false   # avoids OOM on shared nodes
-export XLA_PYTHON_CLIENT_MEM_FRACTION=0.99   # use 75% of GPU memory
+export XLA_PYTHON_CLIENT_PREALLOCATE=false
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.99
+export CUDA_VISIBLE_DEVICES=$SLURM_JOB_GPUS
 
 ulimit -s unlimited
 
-export XLA_PYTHON_CLIENT_PREALLOCATE=false
-export CUDA_VISIBLE_DEVICES=0
-
-# python MyCuda_GP.py
 python Bivar_Cuda_GP.py
-# JDN  my comment SBATCH --gres=gpu:v100:1 
+
