@@ -25,13 +25,13 @@ Reconstruction:
 Kernel (both channels):
     k((ρ,f),(ρ',f')) = k_ρ(ρ,ρ') · k_f(f,f')   — Matérn 5/2 in each dim
 
-The training inputs form a grid (n_ρ × n_f), which enables Kronecker
+The training inputs form a grid (n_ρ × n_th x n_f), which enables Kronecker
 structure for efficient inference (see note at bottom of file).
 
 Created: 05/27/2026
 
 Modifications: This version of the code exploits GPU Parallelization
-Mallorie
+Ma110ri3 parallelization 
 """
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -78,8 +78,10 @@ n_rho = 25
 rho_0 = 0.2
 rho_values  = np.linspace(rho_0, 1.0-rho_0, 25)[:n_rho]
 thick_values = np.arange(0.0,6.0,1.0)
-dd = 7
-freq_values = np.arange(100.0, 601.0, dd, dtype=np.float64)
+# dd = 7
+dd = 11
+# freq_values = np.arange(100.0, 601.0, dd, dtype=np.float64)
+freq_values = np.arange(1.0, 800.0, dd, dtype=np.float64)
 frf_matrix  = np.zeros((np.shape(rho_values)[0]*np.shape(thick_values)[0],np.shape(freq_values)[0]))
 
 print(np.shape(frf_matrix))
@@ -88,12 +90,14 @@ cont0 = 0
 for cont1 in range(n_rho):
     # filn = '/work/ljk354/FRF_Optim/Training/CAE/Results_T1D' + str(cont1+1) + '.txt'
     filn = '/work/ljk354/FRF_Optim/Learning_GP/Data/Results_T1D' + str(cont1+1) + '.txt'
-    frf_matrix[cont0,:] = np.loadtxt(filn, skiprows=3)[99:600:dd,1].T
+    # frf_matrix[cont0,:] = np.loadtxt(filn, skiprows=3)[99:600:dd,1].T
+    frf_matrix[cont0,:] = np.loadtxt(filn, skiprows=3)[::dd,1].T
     cont0 += 1
     for cont2 in range(np.shape(thick_values)[0]-1):
         print(cont2)
         filn = '/work/ljk354/FRF_Optim/Learning_GP/Data_Th/Results_T1D' + str(cont1+1) + 'H' + str(2*cont2+1) + '.txt'
-        frf_matrix[cont0,:] = np.loadtxt(filn, skiprows=3)[99:600:dd,1].T
+        # frf_matrix[cont0,:] = np.loadtxt(filn, skiprows=3)[99:600:dd,1].T
+        frf_matrix[cont0,:] = np.loadtxt(filn, skiprows=3)[::dd,1].T
         cont0 += 1
     # end for
 # end for
@@ -669,7 +673,7 @@ os.chdir(foldr_out)
 
 # for res in loo_results:
 #     fig = plot_loo_result(res, freq_values)
-#     fig.savefig(f"CUDA_loo_fold_{res['fold']+1}.png", dpi=150, bbox_inches="tight")
+#     fig.savefig(f"CUDA_loo_fold_{res['fold']+1}.png", dpi=350, bbox_inches="tight")
 #     plt.close(fig)
 #     print(f"  Saved CUDA_loo_fold_{res['fold']+1}.png")
 # # end for
@@ -848,7 +852,7 @@ print("═" * 60)
 def plot_frf_surface(
     rho_values: np.ndarray,
     thick_values: np.ndarray,
-    frf_tensor: np.ndarray,      # (n_rho, n_thick, n_freq)
+    frf_matrix: np.ndarray,      # (n_rho, n_thick, n_freq)
     freq_values: np.ndarray,
     model: dict,
     rho_dense: np.ndarray = None,
@@ -869,15 +873,19 @@ def plot_frf_surface(
 
     if rho_dense is None:
         rho_dense = np.linspace(rho_values.min(), rho_values.max(), 25)
+    # end if
 
     if thick_dense is None:
         thick_dense = np.linspace(thick_values.min(), thick_values.max(), 25)
+    # end if
 
     if rho_fixed is None:
         rho_fixed = rho_values[len(rho_values)//2]
+    # end if
 
     if thick_fixed is None:
         thick_fixed = thick_values[len(thick_values)//2]
+    # end if
 
     rho_idx = np.argmin(np.abs(rho_values-rho_fixed))
     thick_idx = np.argmin(np.abs(thick_values-thick_fixed))
@@ -885,6 +893,18 @@ def plot_frf_surface(
     fig, axs = plt.subplots(2,2,figsize=figsize)
 
     cmap = plt.cm.viridis
+    
+    ###############################################################
+    # (0) Create frf_tensor
+    ###############################################################
+    frf_tensor = np.zeros((len(rho_values), len(thick_values), len(freq_values)))
+    cont0 = 0
+    for cont1 in range(len(rho_values)):
+        for cont2 in range(len(thick_values)):
+            frf_tensor[cont1, cont2, :] = frf_matrix[cont0, :]
+            cont0 += 1
+        # end for
+    # end for
 
     ###############################################################
     # (1) Training data : varying rho
@@ -1006,6 +1026,7 @@ def plot_frf_surface(
     fig.tight_layout()
 
     return fig
+# end plot_frf_surface
 
 # fig_surf = plot_frf_surface(
 #     rho_values, thick_values, frf_matrix, freq_values, model,
@@ -1025,39 +1046,236 @@ fig_surf = plot_frf_surface(
 fig_surf.savefig("CUDA_frf_surface.png", dpi=350, bbox_inches="tight")
 plt.close(fig_surf)
 
-print("\nDone. Outputs: loo_fold_*.png | training_history.png | frf_surface.png")
+print("\nDone frf_surface.png")
 print("═" * 60)
 
-# # ═════════════════════════════════════════════════════════════════════════════
-# # 8. Save model
-# # ═════════════════════════════════════════════════════════════════════════════
-# print("\n" + "═" * 60)
-# print("STEP 8 — Saving model")
-# print("═" * 60)
+# ═════════════════════════════════════════════════════════════════════════════
+# 8. Predict at a new density & visualise the Phase surface
+# ═════════════════════════════════════════════════════════════════════════════
+print("\n" + "═" * 60)
+print("STEP 8 — Starting Phase Surface Visualisation")
+print("═" * 60)
 
-# # Saving the model using pkl
-# import pickle
-# with open("CUDA_gp_model.pkl", "wb") as f:
-#     pickle.dump(model, f)
+def plot_phase_surface(
+    rho_values: np.ndarray,
+    thick_values: np.ndarray,
+    frf_matrix: np.ndarray,
+    freq_values: np.ndarray,
+    model: dict,
+    rho_dense: np.ndarray=None,
+    thick_dense: np.ndarray=None,
+    rho_fixed: float=None,
+    thick_fixed: float=None,
+    figsize=(15,10),
+):
+    """
+    Four-panel visualization of phase.
 
-# # Saving the model using equinos
-# import equinox as eqx 
-# eqx.tree_serialise_leaves("CUDA_gp_model.eqx", model)
+        (1) Training phase varying rho
+        (2) GP phase varying rho
 
-# print("\nFinished saving model")
-# print("═" * 60)
+        (3) Training phase varying thickness
+        (4) GP phase varying thickness
+    """
 
+    if rho_dense is None:
+        rho_dense = np.linspace(rho_values.min(), rho_values.max(),25)
+    # end if
 
- 
+    if thick_dense is None:
+        thick_dense = np.linspace(thick_values.min(), thick_values.max(),25)
+    # end if
 
+    if rho_fixed is None:
+        rho_fixed = rho_values[len(rho_values)//2]
+    # end if
 
+    if thick_fixed is None:
+        thick_fixed = thick_values[len(thick_values)//2]
+    # end if
 
+    rho_idx   = np.argmin(np.abs(rho_values-rho_fixed))
+    thick_idx = np.argmin(np.abs(thick_values-thick_fixed))
 
+    fig,axs = plt.subplots(2,2,figsize=figsize)
 
+    cmap = plt.cm.viridis
 
+    ###############################################################
+    # (0) Create frf_tensor
+    ###############################################################
+    frf_tensor = np.zeros((len(rho_values), len(thick_values), len(freq_values)))
+    cont0 = 0
+    for cont1 in range(len(rho_values)):
+        for cont2 in range(len(thick_values)):
+            frf_tensor[cont1, cont2, :] = frf_matrix[cont0, :]
+            cont0 += 1
+        # end for
+    # end for
 
+    ############################################################
+    # Training : varying rho
+    ############################################################
 
+    ax = axs[0,0]
 
+    for i,rho in enumerate(rho_values):
 
+        H = frf_tensor[i,thick_idx,:]
 
+        phase = np.where(H>=0,0.0,180.0)
 
+        ax.plot(
+            freq_values,
+            phase,
+            color=cmap(i/max(len(rho_values)-1,1)),
+            lw=1,
+        )
+
+    ax.set_title(f"Training Phase\nVarying Relative Density\nThickness={thick_values[thick_idx]:.2f}")
+    ax.set_ylabel("Phase [deg]")
+
+    ############################################################
+    # GP : varying rho
+    ############################################################
+
+    ax = axs[0,1]
+
+    for i,rho in enumerate(rho_dense):
+
+        pred = predict_frf(
+            rho,
+            thick_values[thick_idx],
+            freq_values,
+            model["mag_post"],
+            model["sign_post"],
+            model["mag_ds"],
+            model["sign_ds"],
+            model["meta"],
+        )
+
+        phase = np.where(pred["pred_sign"]>0,0.0,180.0)
+
+        ax.plot(
+            freq_values,
+            phase,
+            color=cmap(i/max(len(rho_dense)-1,1)),
+            lw=1,
+        )
+
+    ax.set_title("GP Phase\nVarying Relative Density")
+
+    ############################################################
+    # Training : varying thickness
+    ############################################################
+
+    ax = axs[1,0]
+
+    for j,t in enumerate(thick_values):
+
+        H = frf_tensor[rho_idx,j,:]
+
+        phase = np.where(H>=0,0.0,180.0)
+
+        ax.plot(
+            freq_values,
+            phase,
+            color=cmap(j/max(len(thick_values)-1,1)),
+            lw=1,
+        )
+
+    ax.set_title(f"Training Phase\nVarying Thickness\nDensity={rho_values[rho_idx]:.2f}")
+    ax.set_xlabel("Frequency [kHz]")
+    ax.set_ylabel("Phase [deg]")
+
+    ############################################################
+    # GP : varying thickness
+    ############################################################
+
+    ax = axs[1,1]
+
+    for j,t in enumerate(thick_dense):
+
+        pred = predict_frf(
+            rho_values[rho_idx],
+            t,
+            freq_values,
+            model["mag_post"],
+            model["sign_post"],
+            model["mag_ds"],
+            model["sign_ds"],
+            model["meta"],
+        )
+
+        phase = np.where(pred["pred_sign"]>0,0.0,180.0)
+
+        ax.plot(
+            freq_values,
+            phase,
+            color=cmap(j/max(len(thick_dense)-1,1)),
+            lw=1,
+        )
+
+    ax.set_title("GP Phase\nVarying Thickness")
+    ax.set_xlabel("Frequency [kHz]")
+
+    ############################################################
+
+    for ax in axs.flat:
+
+        ax.set_ylim([-10,190])
+        ax.set_yticks([0,180])
+        ax.grid(alpha=0.25)
+
+    fig.tight_layout()
+
+    return fig
+# end plot_phase_surface
+
+fig_phase = plot_phase_surface(
+    rho_values,
+    thick_values,
+    frf_matrix,
+    freq_values,
+    model,
+    rho_dense=np.linspace(rho_values.min(), rho_values.max(),25),
+    thick_dense=np.linspace(thick_values.min(), thick_values.max(),25),
+)
+
+fig_phase.savefig(
+    "CUDA_phase_surface.png",
+    dpi=350,
+    bbox_inches="tight",
+)
+plt.close(fig_phase)
+
+print("\nDone. phase_surface.png")
+print("═" * 60)
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 8. Save model
+# ═════════════════════════════════════════════════════════════════════════════
+print("\n" + "═" * 60)
+print("STEP 8 — Saving model")
+print("═" * 60)
+
+# import equinox as eqx
+
+# eqx.tree_serialise_leaves(
+#     "mag_posterior.eqx",
+#     model["mag_post"],
+# )
+
+# eqx.tree_serialise_leaves(
+#     "sign_posterior.eqx",
+#     model["sign_post"],
+# )
+
+# Saving the model using pkl
+import pickle
+with open("CUDA_gp_model.pkl", "wb") as f:
+    pickle.dump(model, f)
+# end with
+
+print("\nFinished saving model")
+print("═" * 60)
