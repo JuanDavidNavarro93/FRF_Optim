@@ -2,8 +2,8 @@
 #
 # Define a job name.
 #SBATCH -J Optim
-#SBATCH -o CPU_myjob.%j.o # Name of the stdout output file
-#SBATCH -e CPU_myjob.%j.e # Name of stderr error file
+#SBATCH -o CPU_myjob..o # Name of the stdout output file
+#SBATCH -e CPU_myjob..e # Name of stderr error file
 #SBATCH -p compute3 # Queue (partition) name
 #SBATCH -N 1 # Total # of nodes 
 #SBATCH -n 1 # Total # of mpi tasks
@@ -28,4 +28,5 @@ module load anaconda3
 # export XLA_PYTHON_CLIENT_PREALLOCATE=false
 # export CUDA_VISIBLE_DEVICES=0
 
-python MyOptimization.py
+# python MyOptimization.py
+python NewPlot.py

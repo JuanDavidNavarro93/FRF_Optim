@@ -159,7 +159,6 @@ def prepare_data(
     jax.device_put(jnp.array(y_sign), device),
     meta,
     )
-
 # end prepare_data
 
 def build_product_kernel(
@@ -189,7 +188,6 @@ def build_product_kernel(
     )
     
     return gpx.kernels.ProductKernel(kernels=[k_rho, k_f])
-  
 # end build_product_kernel
 
 def train_magnitude_gp(
@@ -255,7 +253,6 @@ def train_magnitude_gp(
     #       f"σ² (noise) = {opt_posterior.likelihood.obs_stddev**2:.2e}")   
  
     return opt_posterior, history, dataset
-
 # end train_magnitude_gp
 
 def train_sign_gp(
@@ -320,7 +317,6 @@ def train_sign_gp(
     #       f"ℓ_f = {k1.lengthscale:.2f} kHz")
  
     return opt_posterior, history, dataset
-
 # end train_sign_gp 
 
 # @jax.jit
@@ -361,7 +357,6 @@ def predict_magnitude(
     magnitude_std = magnitude * std_log
  
     return magnitude, magnitude_std
-
 #end predict_magnitude
 
 def predict_sign(
@@ -394,7 +389,6 @@ def predict_sign(
     pred_sign     = np.where(prob_positive >= 0.5, 1.0, -1.0)
  
     return prob_positive, pred_sign
-
 # end predict_sign
 
 def predict_frf(
@@ -444,7 +438,6 @@ def predict_frf(
         prob_positive = prob_positive,
         pred_sign     = pred_sign,
     )
-
 # end predict_frf
 
 def loo_cross_validation(
@@ -525,7 +518,6 @@ def loo_cross_validation(
     print(f"  Mean sign accuracy:  {np.mean([r['sign_acc'] for r in results])*100:.1f}%")
     
     return results
-
 # end loo_cross_validation
 
 # loo_results = loo_cross_validation(
@@ -622,7 +614,6 @@ def plot_loo_result(
         fontsize=11, fontweight="bold",
     )
     return fig
-
 # end plot_loo_result
 
 # Plot each LOO fold
@@ -687,7 +678,6 @@ def train_full_model(
         meta       = meta,
         freq_values = freq_values,
     )
-
 # end train_full_model
 
 model = train_full_model(
@@ -727,7 +717,6 @@ def plot_training_history(
     fig.suptitle("Training convergence", fontsize=11, fontweight="bold")
     fig.tight_layout()
     return fig
-
 # end plot_training_history
 
 # Training history
@@ -801,7 +790,6 @@ def plot_frf_surface(
     fig.colorbar(sm, ax=[ax0, ax1], label="Relative density ρ", shrink=0.85)
     # fig.suptitle("FRF Surface H(ρ, f)", fontsize=11, fontweight="bold")
     return fig
-
 # end plot_frf_surface
 
 fig_surf = plot_frf_surface(

@@ -24,5 +24,6 @@ export CUDA_VISIBLE_DEVICES=$SLURM_JOB_GPUS
 
 ulimit -s unlimited
 
-python Bivar_Cuda_GP.py
+# python Bivar_Cuda_GP.py
+python Sparse_GP.py
 
